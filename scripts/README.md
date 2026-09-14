@@ -2,6 +2,63 @@
 
 This directory contains utility scripts for setting up and managing the gh-agentic-workflows pipeline.
 
+## rollout-org.js
+
+`rollout-org.js` surveys or pilots the pipeline across an organization. It defaults to
+`bootc-dev` and source `bootc-dev/gh-agentic-workflows`, but requires an exact release
+tag: `node scripts/rollout-org.js --version vX.Y.Z`. Plans first validate that this is a
+published GitHub release, then remain read-only: they do not clone, write, push, or create
+PRs. Plans report matching open rollout PRs and rollout branches that exist without a PR
+instead of proposing duplicate work. Use `--json` for machine-readable results.
+
+Apply is intentionally harder to invoke: use either a repeatable target
+`--repo ORG/REPO` or explicit fleet-wide `--all`, together with `--apply --confirm-org ORG`.
+For example: `node scripts/rollout-org.js --org bootc-dev --version vX.Y.Z --repo bootc-dev/example --apply --confirm-org bootc-dev`.
+For the selected organization, `--repo example` is equivalent to `--repo ORG/example`;
+repositories owned by another organization are rejected.
+The script skips archived, fork, template, empty, metadata, sandbox, and source-package
+repositories.
+Package-managed support files outside `.github/workflows` (including `.github/aw`, skills,
+agents, attributes, and any package-provided editor files) are reviewed and committed with
+the workflow installation. Rollout commits are signed off using the invoking user's Git
+identity so that repositories enforcing the Developer Certificate of Origin accept them.
+
+If an earlier invocation opened rollout PRs without signoffs, rerun the same apply command
+with `--repair-signoffs`. The script only rewrites an open PR when it is the expected
+same-repository rollout branch, contains exactly one commit, and that commit's message is
+unchanged from the tool-generated message. The push uses an exact force-with-lease check.
+Repair mode never creates a branch or PR where one does not already exist.
+For example: `node scripts/rollout-org.js --org bootc-dev --version vX.Y.Z --all
+--apply --confirm-org bootc-dev --repair-signoffs`.
+This follows the official gh-aw at-scale sharing guide: keep the package centrally in
+`aw.yml`, pin consumers to an exact release tag, and install with `gh aw add
+SOURCE@VERSION`. A repository containing all six package workflows is `update-planned`
+in a read-only plan. In apply mode, stable gh-aw cannot select an exact new package tag
+with `gh aw update` (and package-aware URL update is not stable), so the current safe
+workaround is `gh aw add SOURCE@VERSION --force`, followed by an explicit compile and a
+draft PR. Switch to package-aware `gh aw update` when it is stable and can target an
+exact package version.
+
+First installs use branch `agent-pipeline-rollout` and do not pass `--force`; they are
+reported as `planned` and `opened`. Updates use the versioned branch
+`agent-pipeline-update-vX.Y.Z` and are reported as `update-planned` and `update-opened`.
+Existing operation PRs are reported with their URL; an operation branch without an open
+PR is blocked instead. A forced update is an overwrite, not a three-way merge: package
+file customizations can be replaced and stale package files can remain. The draft PR
+must review both before merge. The script fails closed if the pre-update `merge.yml`
+does not have the exact known normal auto-merge condition or exact known pilot guard;
+it preserves either state and reapplies the drafter/fixer ecosystem network policy after
+the refresh. It also removes accidental single trailing spaces from the package Markdown;
+the final staged diff check still rejects all remaining whitespace errors.
+
+Prerequisites are authenticated `gh`, the `gh-aw` extension (including a version capable
+of compiling the selected release), git push permission, and permission to create draft
+PRs. Pilot PRs retain `merge.yml` but disable auto-merge. Rust, Go, and Python targets get
+the known-template package-network allowance; other languages are reported for manual review.
+After merge, a human must install/configure the GitHub App credentials (`GH_AW_APP_CLIENT_ID`,
+`GH_AW_APP_PRIVATE_KEY`, and `GH_AW_APP_BOT_SLUG`) and run the label setup before enabling
+auto-merge. Do not put credentials on the command line.
+
 ## install-labels.js
 
 Installs the required labels on a repository for the issue → PR → review → fix → merge pipeline.
