@@ -83,6 +83,33 @@ Alternatively, you can copy `.github/workflows/install-labels.yml` to your own r
 workflow inlines the LABELS array and install loop directly in its `actions/github-script` step, so it has no
 dependency on this file being checked out.
 
+#### On every pipeline repository in bootc-dev
+
+`.github/workflows/install-labels-org.yml` runs this script weekly, on dispatch, and
+whenever the label set changes on `main`. It installs the labels on every non-archived
+bootc-dev repository that runs the pipeline, i.e. contains any of `drafter.lock.yml`,
+`review.lock.yml` or `fix.lock.yml` in `.github/workflows`, and that the `GH_AW_APP_*` App
+is installed on. Other repositories are left alone. It creates missing labels and fixes the color,
+description and name case of existing ones, but never deletes a label. It is not part of the gh-aw
+package and runs only from `bootc-dev/gh-agentic-workflows`.
+
+Each pipeline repository also keeps running its own weekly copy of `install-labels.yml`,
+which only picks up label changes when that repository runs `gh aw update`. So after a
+label's color or description changes here, the two workflows will flip it back and forth
+between the old and new values (and a renamed label's old name will be recreated) until
+the repository updates its copy.
+
+Only the `agent/*` labels are managed here. Labels every bootc-dev and composefs
+repository should have regardless of the pipeline (e.g. `triaged`) are synced by
+[bootc-dev/infra](https://github.com/bootc-dev/infra)'s `labels.toml`.
+
+To see what it would change without writing anything, run it with any authenticated
+`gh` (read access is enough), or dispatch the workflow with `dry-run` set:
+
+```bash
+node scripts/install-labels.js --org bootc-dev --dry-run
+```
+
 #### Via github-script action
 
 If you want to integrate label installation into your own workflow, `install-labels.js` is a plain CommonJS module
